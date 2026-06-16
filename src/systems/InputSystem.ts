@@ -4,10 +4,12 @@ import { createBuildingModel } from "../rendering/models";
 import { EntitySystem } from "./EntitySystem";
 import { ResourceSystem } from "./ResourceSystem";
 import { BUILDINGS } from "../config";
+import { FogSystem } from "./FogSystem";
 
 interface InputCallbacks {
   selectionChanged: () => void;
   notify: (message: string) => void;
+  commandIssued: () => void;
 }
 
 export class InputSystem {
@@ -26,6 +28,7 @@ export class InputSystem {
     private readonly raycaster: THREE.Raycaster,
     private readonly entities: EntitySystem,
     private readonly resources: ResourceSystem,
+    private readonly fog: FogSystem,
     selectionBox: HTMLElement,
     private readonly callbacks: InputCallbacks,
   ) {
@@ -124,12 +127,14 @@ export class InputSystem {
     const target = this.pickEntity(event);
     if (target?.team === "enemy") {
       for (const unit of units) unit.order = { type: "attack", targetId: target.id };
+      this.callbacks.commandIssued();
       this.callbacks.notify("Attack order issued.");
       return;
     }
     if (target?.kind === "resource") {
       const villagers = units.filter((unit) => unit.unitKind === "villager");
       for (const unit of villagers) unit.order = { type: "gather", targetId: target.id };
+      if (villagers.length) this.callbacks.commandIssued();
       this.callbacks.notify(villagers.length ? `Gather ${target.resourceType}.` : "Only villagers gather resources.");
       return;
     }
@@ -143,6 +148,7 @@ export class InputSystem {
         target: this.groundPoint.clone().add(new THREE.Vector3(offsetX, 0, offsetZ)),
       };
     });
+    this.callbacks.commandIssued();
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -196,7 +202,7 @@ export class InputSystem {
       let object: THREE.Object3D | null = intersection.object;
       while (object && object.userData.entityId === undefined) object = object.parent;
       const entity = object ? this.entities.get(object.userData.entityId as number) : undefined;
-      if (entity) return entity;
+      if (entity && this.fog.isVisible(entity)) return entity;
     }
     return undefined;
   }
@@ -232,6 +238,7 @@ export class InputSystem {
     for (const unit of this.selectedUnits().filter((item) => item.unitKind === "villager")) {
       unit.order = { type: "build", targetId: building.id };
     }
+    this.callbacks.commandIssued();
     this.cancelPlacement();
     this.callbacks.notify(`${BUILDINGS[kind].label} foundation placed.`);
   }

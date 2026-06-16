@@ -2,8 +2,12 @@ import * as THREE from "three";
 import { STARTING_RESOURCES, TRAINING } from "../config";
 import { SceneRenderer } from "../rendering/Scene";
 import { AISystem } from "../systems/AISystem";
+import { AnimationSystem } from "../systems/AnimationSystem";
+import { AudioSystem } from "../systems/AudioSystem";
 import { CameraSystem } from "../systems/CameraSystem";
 import { EntitySystem } from "../systems/EntitySystem";
+import { EffectsSystem } from "../systems/EffectsSystem";
+import { FogSystem } from "../systems/FogSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { ResourceSystem } from "../systems/ResourceSystem";
 import { SimulationSystem } from "../systems/SimulationSystem";
@@ -17,6 +21,10 @@ export class Game {
   private readonly entities: EntitySystem;
   private readonly resources = new ResourceSystem(STARTING_RESOURCES);
   private readonly simulation: SimulationSystem;
+  private readonly animation: AnimationSystem;
+  private readonly audio = new AudioSystem();
+  private readonly effects: EffectsSystem;
+  private readonly fog: FogSystem;
   private readonly ai: AISystem;
   private readonly ui: UI;
   private readonly input: InputSystem;
@@ -28,16 +36,25 @@ export class Game {
     this.rendering = new SceneRenderer(root);
     this.camera = new CameraSystem(this.rendering.renderer.domElement);
     this.entities = new EntitySystem(this.rendering.scene);
-    this.simulation = new SimulationSystem(this.entities, this.resources);
-    this.ai = new AISystem(this.entities);
     new World(this.rendering.scene);
+    this.effects = new EffectsSystem(this.rendering.scene);
+    this.simulation = new SimulationSystem(this.entities, this.resources, this.audio, this.effects);
+    this.animation = new AnimationSystem(this.entities, this.camera.camera);
+    this.ai = new AISystem(this.entities);
 
     this.ui = new UI(root, {
       build: (kind) => this.input.startPlacement(kind),
       trainVillager: () => this.train("villager"),
       trainSoldier: () => this.train("soldier"),
+      activateSound: () => this.audio.activateAndTest(),
+      toggleMute: () => this.audio.toggleMute(),
       restart: () => window.location.reload(),
     });
+    this.createScenario();
+    this.fog = new FogSystem(this.rendering.scene, this.entities);
+    this.simulation.setTargetVisibility((entity) => (
+      entity.team === "player" || this.fog.isVisible(entity)
+    ));
     this.input = new InputSystem(
       this.rendering.renderer.domElement,
       this.camera.camera,
@@ -45,13 +62,15 @@ export class Game {
       this.rendering.raycaster,
       this.entities,
       this.resources,
+      this.fog,
       this.ui.getSelectionBox(),
       {
         selectionChanged: () => this.refreshSelection(),
         notify: (message) => this.ui.notify(message),
+        commandIssued: () => this.audio.play("command"),
       },
     );
-    this.createScenario();
+    this.audio.onStatusChanged((status) => this.ui.setAudioStatus(status));
     this.refreshSelection();
     this.ui.notify("Select your villagers and gather nearby resources.");
   }
@@ -67,6 +86,9 @@ export class Game {
     if (this.state === "playing") {
       this.camera.update(delta);
       this.simulation.update(delta);
+      this.animation.update(delta);
+      this.effects.update(delta);
+      this.fog.update(delta);
       this.ai.update(delta);
       this.checkEndState();
     }
@@ -163,22 +185,28 @@ export class Game {
     const enemyBase = this.getTownCenter("enemy");
     this.ui.setObjective(enemyBase?.health ?? 0);
     this.ui.updateMinimap(
-      this.entities.all().map((entity) => ({
+      this.entities.all().filter((entity) => (
+        entity.team === "player" ||
+        (entity.team === "enemy" ? this.fog.isVisible(entity) : this.fog.isExplored(entity))
+      )).map((entity) => ({
         x: entity.object.position.x,
         z: entity.object.position.z,
         team: entity.team,
         kind: entity.kind,
       })),
       this.camera.camera.position,
+      (context, width, height) => this.fog.drawOnMinimap(context, width, height),
     );
   }
 
   private checkEndState(): void {
     if (!this.getTownCenter("enemy")) {
       this.state = "won";
+      this.audio.play("victory");
       this.ui.showEnd("won");
     } else if (!this.getTownCenter("player")) {
       this.state = "lost";
+      this.audio.play("defeat");
       this.ui.showEnd("lost");
     }
   }

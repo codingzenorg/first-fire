@@ -44,6 +44,8 @@ export interface Unit extends Entity {
   carried: number;
   carriedType?: ResourceType;
   gatherTimer: number;
+  animationTime: number;
+  lastPosition: THREE.Vector3;
   selectionRing: THREE.Mesh;
   healthBar: THREE.Group;
 }

@@ -1,9 +1,12 @@
+import type { AudioStatus } from "../systems/AudioSystem";
 import type { Building, BuildingKind, GameState, Stockpile, Unit } from "../types";
 
 export interface UIActions {
   build: (kind: BuildingKind) => void;
   trainVillager: () => void;
   trainSoldier: () => void;
+  activateSound: () => Promise<AudioStatus>;
+  toggleMute: () => Promise<AudioStatus>;
   restart: () => void;
 }
 
@@ -29,7 +32,10 @@ export class UI {
         <header class="topbar">
           <div class="brand"><span>FIRST</span> FIRE</div>
           <div class="resources" data-ui="resources"></div>
-          <div class="wave" data-ui="wave"></div>
+          <div class="top-actions">
+            <button class="sound-toggle" data-action="sound" aria-label="Activate and test sound">TEST SOUND</button>
+            <div class="wave" data-ui="wave"></div>
+          </div>
         </header>
         <aside class="objective" data-ui="objective">
           <strong>CONQUEST</strong>
@@ -66,6 +72,13 @@ export class UI {
     this.endScreen = this.require("[data-ui='end-screen']");
     this.toast = this.require("[data-ui='toast']");
     this.require("[data-action='restart']").addEventListener("click", actions.restart);
+    this.require("[data-action='sound']").addEventListener("click", (event) => {
+      if ((event as MouseEvent).shiftKey) {
+        void actions.toggleMute().then((status) => this.notify(this.audioMessage(status)));
+      } else {
+        void actions.activateSound().then((status) => this.notify(this.audioMessage(status)));
+      }
+    });
   }
 
   updateResources(stockpile: Stockpile): void {
@@ -134,6 +147,7 @@ export class UI {
   updateMinimap(
     entities: { x: number; z: number; team: string; kind: string }[],
     cameraPosition: { x: number; z: number },
+    drawFog?: (context: CanvasRenderingContext2D, width: number, height: number) => void,
   ): void {
     const context = this.minimapContext;
     const { width, height } = this.minimap;
@@ -159,6 +173,7 @@ export class UI {
       const size = entity.kind === "building" ? 5 : entity.kind === "resource" ? 2 : 3;
       context.fillRect(x - size / 2, y - size / 2, size, size);
     }
+    drawFog?.(context, width, height);
     const cameraX = ((cameraPosition.x + 56) / 112) * width;
     const cameraY = ((cameraPosition.z + 56) / 112) * height;
     context.strokeStyle = "#f5e7b2";
@@ -187,6 +202,17 @@ export class UI {
 
   getSelectionBox(): HTMLElement {
     return this.require("[data-ui='selection-box']");
+  }
+
+  setAudioStatus(status: AudioStatus): void {
+    const button = this.require<HTMLButtonElement>("[data-action='sound']");
+    button.textContent =
+      status === "ready" ? "AUDIO READY" :
+      status === "blocked" ? "AUDIO BLOCKED" :
+      status === "muted" ? "AUDIO MUTED" :
+      "TEST SOUND";
+    button.classList.toggle("muted", status === "muted" || status === "blocked");
+    button.title = status === "ready" ? "Click to test again. Shift-click or press M to mute." : "Click to activate and test audio.";
   }
 
   private renderBuildingCommands(building: Building): void {
@@ -227,6 +253,13 @@ export class UI {
   private buildingName(kind: BuildingKind): string {
     if (kind === "townCenter") return "Town Center";
     return kind === "barracks" ? "Barracks" : "House";
+  }
+
+  private audioMessage(status: AudioStatus): string {
+    if (status === "ready") return "Audio ready. You should hear the test tone.";
+    if (status === "blocked") return "Audio blocked by the browser or output device.";
+    if (status === "muted") return "Audio muted. Press M or Shift-click to unmute.";
+    return "Click TEST SOUND to activate audio.";
   }
 
   private require<T extends Element = HTMLElement>(selector: string): T {

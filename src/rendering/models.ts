@@ -55,20 +55,26 @@ export function createHealthBar(width: number): THREE.Group {
 
 export function createUnitModel(kind: UnitKind, team: Team): THREE.Group {
   const group = new THREE.Group();
+  const model = new THREE.Group();
+  model.name = "model";
   const color = teamMaterial(teamColor(team));
 
   const legs = [
     mesh(new THREE.BoxGeometry(0.22, 0.55, 0.25), materials.cloth, [-0.2, 0.36, 0]),
     mesh(new THREE.BoxGeometry(0.22, 0.55, 0.25), materials.cloth, [0.2, 0.36, 0]),
   ];
+  legs[0].name = "legLeft";
+  legs[1].name = "legRight";
   const torso = mesh(
     new THREE.CylinderGeometry(0.34, 0.42, 0.72, 7),
     color,
     [0, 0.98, 0],
   );
+  torso.name = "torso";
   const head = mesh(new THREE.SphereGeometry(0.26, 8, 6), materials.skin, [0, 1.55, 0]);
 
-  group.add(...legs, torso, head);
+  model.add(...legs, torso, head);
+  group.add(model);
 
   if (kind === "villager") {
     const hood = mesh(
@@ -87,7 +93,10 @@ export function createUnitModel(kind: UnitKind, team: Team): THREE.Group {
       materials.iron,
       [0.62, 1.48, 0],
     );
-    group.add(hood, axeHandle, axeHead);
+    const tool = new THREE.Group();
+    tool.name = "tool";
+    tool.add(axeHandle, axeHead);
+    model.add(hood, tool);
   } else {
     const helmet = mesh(
       new THREE.SphereGeometry(0.29, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2),
@@ -104,7 +113,10 @@ export function createUnitModel(kind: UnitKind, team: Team): THREE.Group {
       materials.iron,
       [0.5, 2.53, 0],
     );
-    group.add(helmet, spear, spearHead);
+    const tool = new THREE.Group();
+    tool.name = "tool";
+    tool.add(spear, spearHead);
+    model.add(helmet, tool);
   }
 
   setShadows(group);

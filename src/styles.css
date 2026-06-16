@@ -115,11 +115,38 @@ canvas {
 }
 
 .wave {
-  justify-self: end;
   color: #d9cda9;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-size: 13px;
+}
+
+.top-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sound-toggle {
+  min-width: 94px;
+  padding: 5px 8px;
+  color: #d9cda9;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(211, 180, 99, 0.4);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.sound-toggle:hover {
+  border-color: var(--gold);
+}
+
+.sound-toggle.muted {
+  color: #8d897c;
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .objective {
@@ -404,7 +431,7 @@ canvas {
     font-size: 14px;
   }
 
-  .wave,
+  .top-actions,
   .hint {
     display: none;
   }

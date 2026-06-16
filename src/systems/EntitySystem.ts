@@ -44,6 +44,8 @@ export class EntitySystem {
       order: { type: "idle" },
       carried: 0,
       gatherTimer: 0,
+      animationTime: Math.random() * Math.PI * 2,
+      lastPosition: position.clone(),
       selectionRing,
       healthBar,
     };
@@ -144,14 +146,16 @@ export class EntitySystem {
     );
   }
 
-  damage(entity: GameEntity, amount: number): void {
-    if (entity.dead || entity.kind === "resource") return;
+  damage(entity: GameEntity, amount: number): boolean {
+    if (entity.dead || entity.kind === "resource") return false;
     entity.health = Math.max(0, entity.health - amount);
     this.updateHealthBar(entity);
     if (entity.health <= 0) {
       entity.dead = true;
       this.scene.remove(entity.object);
+      return true;
     }
+    return false;
   }
 
   updateHealthBar(entity: Unit | Building): void {

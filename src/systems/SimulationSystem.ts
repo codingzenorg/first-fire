@@ -2,14 +2,24 @@ import * as THREE from "three";
 import type { Building, GameEntity, ResourceNode, Team, Unit } from "../types";
 import { EntitySystem } from "./EntitySystem";
 import { ResourceSystem } from "./ResourceSystem";
+import { AudioSystem } from "./AudioSystem";
+import { EffectsSystem } from "./EffectsSystem";
 
 const tempDirection = new THREE.Vector3();
 
 export class SimulationSystem {
+  private canTarget: (entity: GameEntity) => boolean = () => true;
+
   constructor(
     private readonly entities: EntitySystem,
     private readonly resources: ResourceSystem,
+    private readonly audio: AudioSystem,
+    private readonly effects: EffectsSystem,
   ) {}
+
+  setTargetVisibility(predicate: (entity: GameEntity) => boolean): void {
+    this.canTarget = predicate;
+  }
 
   update(delta: number): void {
     for (const unit of this.entities.units()) {
@@ -18,12 +28,10 @@ export class SimulationSystem {
     }
     for (const building of this.entities.buildings()) {
       this.updateBuilding(building, delta);
-      building.healthBar.quaternion.copy(this.getCameraQuaternion());
     }
   }
 
   private updateUnit(unit: Unit, delta: number): void {
-    unit.healthBar.quaternion.copy(this.getCameraQuaternion());
     switch (unit.order.type) {
       case "move":
         if (this.moveToward(unit, unit.order.target, delta, 0.3)) unit.order = { type: "idle" };
@@ -38,7 +46,7 @@ export class SimulationSystem {
         this.build(unit, unit.order.targetId, delta);
         break;
       case "idle":
-        if (unit.team === "enemy") this.acquireTarget(unit);
+        if (unit.team === "enemy" || unit.unitKind === "soldier") this.acquireTarget(unit);
         break;
     }
   }
@@ -79,6 +87,7 @@ export class SimulationSystem {
       target.amount -= gathered;
       unit.carried += gathered;
       unit.carriedType = target.resourceType;
+      if (unit.team === "player") this.audio.play("gather");
       if (target.amount <= 0) this.entities.removeResource(target);
     }
   }
@@ -120,6 +129,8 @@ export class SimulationSystem {
           material.transparent = false;
         }
       });
+      this.effects.dust(target.object.position);
+      if (target.team === "player") this.audio.play("build");
       unit.order = { type: "idle" };
     }
   }
@@ -134,7 +145,11 @@ export class SimulationSystem {
     if (!this.moveToward(unit, target.object.position, delta, range)) return;
     unit.object.lookAt(target.object.position.x, unit.object.position.y, target.object.position.z);
     if (unit.attackTimer <= 0) {
-      this.entities.damage(target, unit.damage);
+      const impactPosition = target.object.position.clone();
+      const died = this.entities.damage(target, unit.damage);
+      this.effects.hit(impactPosition, target.team);
+      this.audio.play(died ? "death" : "hit");
+      if (died) this.effects.death(impactPosition, target.team);
       unit.attackTimer = unit.attackCooldown;
     }
   }
@@ -145,6 +160,7 @@ export class SimulationSystem {
     if (building.training.remaining <= 0) {
       const spawn = building.rallyPoint.clone();
       const unit = this.entities.createUnit(building.training.unitKind, building.team, spawn);
+      if (building.team === "player") this.audio.play("trained");
       if (building.team === "enemy") {
         const playerBase = this.entities.buildings("player").find((item) => item.buildingKind === "townCenter");
         if (playerBase) unit.order = { type: "attack", targetId: playerBase.id };
@@ -154,13 +170,14 @@ export class SimulationSystem {
   }
 
   private acquireTarget(unit: Unit): void {
+    const opposingTeam = unit.team === "enemy" ? "player" : "enemy";
     const candidates: GameEntity[] = [
-      ...this.entities.units("player"),
-      ...this.entities.buildings("player"),
-    ];
+      ...this.entities.units(opposingTeam),
+      ...this.entities.buildings(opposingTeam),
+    ].filter((entity) => this.canTarget(entity));
     const nearest = candidates
       .map((entity) => ({ entity, distance: entity.object.position.distanceTo(unit.object.position) }))
-      .filter(({ distance }) => distance < 16)
+      .filter(({ distance }) => distance < (unit.team === "player" ? 14 : 16))
       .sort((a, b) => a.distance - b.distance)[0];
     if (nearest) unit.order = { type: "attack", targetId: nearest.entity.id };
   }
@@ -176,8 +193,4 @@ export class SimulationSystem {
       )[0];
   }
 
-  private getCameraQuaternion(): THREE.Quaternion {
-    // The game replaces this before each render; a neutral quaternion still keeps bars readable at RTS angles.
-    return new THREE.Quaternion();
-  }
 }
