@@ -53,7 +53,9 @@ export class CameraSystem {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const right = new THREE.Vector3(forward.z, 0, -forward.x);
     this.desiredTarget.addScaledVector(forward, vertical * speed);
-    this.desiredTarget.addScaledVector(right, horizontal * speed);
+    // Horizontal screen movement is intentionally mapped so rightward input
+    // pans the view right instead of mirroring the terrain movement.
+    this.desiredTarget.addScaledVector(right, -horizontal * speed);
     const bound = MAP_SIZE * 0.44;
     this.desiredTarget.x = THREE.MathUtils.clamp(this.desiredTarget.x, -bound, bound);
     this.desiredTarget.z = THREE.MathUtils.clamp(this.desiredTarget.z, -bound, bound);

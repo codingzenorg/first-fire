@@ -138,6 +138,13 @@ export class InputSystem {
       this.callbacks.notify(villagers.length ? `Gather ${target.resourceType}.` : "Only villagers gather resources.");
       return;
     }
+    if (target?.kind === "building" && target.team === "player" && target.health < target.maxHealth) {
+      const villagers = units.filter((unit) => unit.unitKind === "villager");
+      for (const unit of villagers) unit.order = { type: "repair", targetId: target.id };
+      if (villagers.length) this.callbacks.commandIssued();
+      this.callbacks.notify(villagers.length ? `Repair ${target.buildingKind}.` : "Only villagers repair buildings.");
+      return;
+    }
     this.updateGroundPoint(event);
     const columns = Math.ceil(Math.sqrt(units.length));
     units.forEach((unit, index) => {

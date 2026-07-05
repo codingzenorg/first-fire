@@ -1,10 +1,13 @@
 import type { AudioStatus } from "../systems/AudioSystem";
-import type { Building, BuildingKind, GameState, Stockpile, Unit } from "../types";
+import { MAP_SIZE } from "../config";
+import type { Building, BuildingKind, DifficultyLevel, GameState, Stockpile, Unit } from "../types";
 
 export interface UIActions {
   build: (kind: BuildingKind) => void;
   trainVillager: () => void;
   trainSoldier: () => void;
+  setDifficulty: (difficulty: DifficultyLevel) => void;
+  navigateMinimap: (position: { x: number; z: number }) => void;
   activateSound: () => Promise<AudioStatus>;
   toggleMute: () => Promise<AudioStatus>;
   restart: () => void;
@@ -21,6 +24,12 @@ export class UI {
   private readonly endScreen: HTMLElement;
   private readonly toast: HTMLElement;
   private toastTimer?: number;
+  private minimapPointerId?: number;
+  private minimapHover?: { x: number; z: number };
+  private minimapFlash?: { x: number; z: number; startedAt: number };
+  private minimapDragStart?: { x: number; z: number };
+  private minimapDragCurrent?: { x: number; z: number };
+  private minimapPin?: { x: number; z: number };
 
   constructor(
     private readonly root: HTMLElement,
@@ -33,6 +42,14 @@ export class UI {
           <div class="brand"><span>FIRST</span> FIRE</div>
           <div class="resources" data-ui="resources"></div>
           <div class="top-actions">
+            <label class="difficulty-control">
+              <span>Enemy pace</span>
+              <select data-action="difficulty" aria-label="Enemy pace">
+                <option value="easy">Easy</option>
+                <option value="normal" selected>Normal</option>
+                <option value="hard">Hard</option>
+              </select>
+            </label>
             <button class="sound-toggle" data-action="sound" aria-label="Activate and test sound">TEST SOUND</button>
             <div class="wave" data-ui="wave"></div>
           </div>
@@ -71,6 +88,14 @@ export class UI {
     this.minimapContext = context;
     this.endScreen = this.require("[data-ui='end-screen']");
     this.toast = this.require("[data-ui='toast']");
+    this.minimap.addEventListener("pointerdown", this.onMinimapPointerDown);
+    this.minimap.addEventListener("pointermove", this.onMinimapPointerMove);
+    this.minimap.addEventListener("pointerup", this.onMinimapPointerUp);
+    this.minimap.addEventListener("pointercancel", this.onMinimapPointerCancel);
+    this.minimap.addEventListener("pointerleave", this.onMinimapPointerLeave);
+    this.require<HTMLSelectElement>("[data-action='difficulty']").addEventListener("change", (event) => {
+      this.actions.setDifficulty((event.currentTarget as HTMLSelectElement).value as DifficultyLevel);
+    });
     this.require("[data-action='restart']").addEventListener("click", actions.restart);
     this.require("[data-action='sound']").addEventListener("click", (event) => {
       if ((event as MouseEvent).shiftKey) {
@@ -131,7 +156,7 @@ export class UI {
         this.bind("build-house", () => this.actions.build("house"));
         this.bind("build-barracks", () => this.actions.build("barracks"));
       } else {
-        this.commands.innerHTML = `<div class="command-help">Right-click enemies to attack.<br>Right-click terrain to move.</div>`;
+        this.commands.innerHTML = `<div class="command-help">Right-click enemies to attack.<br>Right-click friendly damaged buildings to repair.<br>Right-click terrain to move.</div>`;
       }
       return;
     }
@@ -174,11 +199,116 @@ export class UI {
       context.fillRect(x - size / 2, y - size / 2, size, size);
     }
     drawFog?.(context, width, height);
+    if (this.minimapHover) {
+      const hoverX = ((this.minimapHover.x + 56) / 112) * width;
+      const hoverY = ((this.minimapHover.z + 56) / 112) * height;
+      context.save();
+      context.strokeStyle = "rgba(245, 231, 178, 0.95)";
+      context.fillStyle = "rgba(245, 231, 178, 0.22)";
+      context.lineWidth = 1.25;
+      context.beginPath();
+      context.arc(hoverX, hoverY, 4.5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.beginPath();
+      context.moveTo(hoverX - 7, hoverY);
+      context.lineTo(hoverX + 7, hoverY);
+      context.moveTo(hoverX, hoverY - 7);
+      context.lineTo(hoverX, hoverY + 7);
+      context.stroke();
+      context.restore();
+    }
+    if (this.minimapPin) {
+      const pinX = ((this.minimapPin.x + 56) / 112) * width;
+      const pinY = ((this.minimapPin.z + 56) / 112) * height;
+      context.save();
+      context.strokeStyle = "rgba(245, 231, 178, 0.9)";
+      context.fillStyle = "rgba(245, 231, 178, 0.16)";
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.arc(pinX, pinY, 5.5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.beginPath();
+      context.moveTo(pinX, pinY - 8);
+      context.lineTo(pinX, pinY + 2);
+      context.stroke();
+      context.restore();
+    }
+    if (this.minimapDragStart && this.minimapDragCurrent) {
+      const startX = ((this.minimapDragStart.x + 56) / 112) * width;
+      const startY = ((this.minimapDragStart.z + 56) / 112) * height;
+      const currentX = ((this.minimapDragCurrent.x + 56) / 112) * width;
+      const currentY = ((this.minimapDragCurrent.z + 56) / 112) * height;
+      context.save();
+      context.strokeStyle = "rgba(245, 231, 178, 0.72)";
+      context.fillStyle = "rgba(93, 169, 233, 0.14)";
+      context.lineWidth = 1.4;
+      context.setLineDash([4, 4]);
+      context.beginPath();
+      context.moveTo(startX, startY);
+      context.lineTo(currentX, currentY);
+      context.stroke();
+      context.setLineDash([]);
+      context.beginPath();
+      context.arc(startX, startY, 3.5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.beginPath();
+      context.arc(currentX, currentY, 4.5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.restore();
+    }
+    if (this.minimapFlash) {
+      const age = performance.now() - this.minimapFlash.startedAt;
+      const alpha = Math.max(0, 1 - age / 420);
+      if (alpha > 0) {
+        const flashX = ((this.minimapFlash.x + 56) / 112) * width;
+        const flashY = ((this.minimapFlash.z + 56) / 112) * height;
+        context.save();
+        context.strokeStyle = `rgba(245, 231, 178, ${alpha})`;
+        context.lineWidth = 2.2;
+        context.setLineDash([5, 3]);
+        context.strokeRect(flashX - 16, flashY - 11, 32, 22);
+        context.strokeStyle = `rgba(93, 169, 233, ${alpha * 0.7})`;
+        context.lineWidth = 1;
+        context.setLineDash([]);
+        context.beginPath();
+        context.arc(flashX, flashY, 7 + alpha * 7, 0, Math.PI * 2);
+        context.stroke();
+        context.restore();
+      } else {
+        this.minimapFlash = undefined;
+      }
+    }
     const cameraX = ((cameraPosition.x + 56) / 112) * width;
     const cameraY = ((cameraPosition.z + 56) / 112) * height;
-    context.strokeStyle = "#f5e7b2";
-    context.lineWidth = 1.5;
+    const pulse = (Math.sin(performance.now() * 0.006) + 1) * 0.5;
+    context.save();
+    context.strokeStyle = "rgba(245, 231, 178, 0.9)";
+    context.fillStyle = `rgba(93, 169, 233, ${0.14 + pulse * 0.2})`;
+    context.lineWidth = 1.2;
+    context.beginPath();
+    context.arc(cameraX, cameraY, 5.5 + pulse * 3.5, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+    context.restore();
+    context.save();
+    context.strokeStyle = `rgba(245, 231, 178, ${0.72 + pulse * 0.2})`;
+    context.fillStyle = `rgba(245, 231, 178, ${0.08 + pulse * 0.05})`;
+    context.lineWidth = 1.2 + pulse * 0.7;
+    context.setLineDash([6 + pulse * 2, 4]);
+    context.fillRect(cameraX - 16, cameraY - 11, 32, 22);
     context.strokeRect(cameraX - 16, cameraY - 11, 32, 22);
+    context.setLineDash([]);
+    context.beginPath();
+    context.arc(cameraX - 16, cameraY - 11, 1.5, 0, Math.PI * 2);
+    context.arc(cameraX + 16, cameraY - 11, 1.5, 0, Math.PI * 2);
+    context.arc(cameraX - 16, cameraY + 11, 1.5, 0, Math.PI * 2);
+    context.arc(cameraX + 16, cameraY + 11, 1.5, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
   }
 
   setObjective(enemyHealth: number): void {
@@ -215,6 +345,10 @@ export class UI {
     button.title = status === "ready" ? "Click to test again. Shift-click or press M to mute." : "Click to activate and test audio.";
   }
 
+  setDifficulty(difficulty: DifficultyLevel): void {
+    this.require<HTMLSelectElement>("[data-action='difficulty']").value = difficulty;
+  }
+
   private renderBuildingCommands(building: Building): void {
     if (!building.built) {
       this.commands.innerHTML = `<div class="command-help">Villagers must finish construction.</div>`;
@@ -238,6 +372,62 @@ export class UI {
     return `<button class="command" data-action="${action}"><kbd>${key}</kbd><b>${label}</b><small>${detail}</small></button>`;
   }
 
+  private readonly onMinimapPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    this.minimapPointerId = event.pointerId;
+    this.minimap.setPointerCapture(event.pointerId);
+    this.navigateMinimap(event);
+  };
+
+  private readonly onMinimapPointerMove = (event: PointerEvent): void => {
+    if (this.minimapPointerId !== event.pointerId) return;
+    this.navigateMinimap(event);
+  };
+
+  private readonly onMinimapPointerUp = (event: PointerEvent): void => {
+    if (this.minimapPointerId !== event.pointerId) return;
+    this.navigateMinimap(event);
+    this.minimapDragStart = undefined;
+    this.minimapDragCurrent = undefined;
+    this.releaseMinimapPointer(event.pointerId);
+  };
+
+  private readonly onMinimapPointerCancel = (event: PointerEvent): void => {
+    if (this.minimapPointerId !== event.pointerId) return;
+    this.minimapDragStart = undefined;
+    this.minimapDragCurrent = undefined;
+    this.releaseMinimapPointer(event.pointerId);
+  };
+
+  private readonly onMinimapPointerLeave = (): void => {
+    this.minimapHover = undefined;
+    if (this.minimapPointerId === undefined) {
+      this.minimapDragStart = undefined;
+      this.minimapDragCurrent = undefined;
+    }
+  };
+
+  private releaseMinimapPointer(pointerId: number): void {
+    if (this.minimap.hasPointerCapture(pointerId)) {
+      this.minimap.releasePointerCapture(pointerId);
+    }
+    this.minimapPointerId = undefined;
+    this.minimapDragStart = undefined;
+    this.minimapDragCurrent = undefined;
+  }
+
+  private navigateMinimap(event: PointerEvent): void {
+    const bounds = this.minimap.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / bounds.width) * MAP_SIZE - MAP_SIZE / 2;
+    const z = ((event.clientY - bounds.top) / bounds.height) * MAP_SIZE - MAP_SIZE / 2;
+    this.minimapHover = { x, z };
+    this.minimapPin = { x, z };
+    if (!this.minimapDragStart) this.minimapDragStart = { x, z };
+    this.minimapDragCurrent = { x, z };
+    this.minimapFlash = { x, z, startedAt: performance.now() };
+    this.actions.navigateMinimap({ x, z });
+  }
+
   private bind(action: string, listener: () => void): void {
     this.require(`[data-action='${action}']`).addEventListener("click", listener);
   }
@@ -245,6 +435,7 @@ export class UI {
   private orderText(unit: Unit): string {
     if (unit.order.type === "gather") return `Gathering ${unit.carriedType ?? "resources"} · carrying ${unit.carried}`;
     if (unit.order.type === "build") return "Constructing";
+    if (unit.order.type === "repair") return "Repairing";
     if (unit.order.type === "attack") return "Engaging enemy";
     if (unit.order.type === "move") return "Moving";
     return "Idle";

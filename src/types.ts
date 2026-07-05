@@ -4,6 +4,7 @@ export type Team = "player" | "enemy" | "neutral";
 export type ResourceType = "wood" | "food" | "gold";
 export type UnitKind = "villager" | "soldier";
 export type BuildingKind = "townCenter" | "house" | "barracks";
+export type DifficultyLevel = "easy" | "normal" | "hard";
 export type EntityKind = "unit" | "building" | "resource";
 export type GameState = "playing" | "won" | "lost";
 
@@ -30,6 +31,7 @@ export type UnitOrder =
   | { type: "move"; target: THREE.Vector3 }
   | { type: "gather"; targetId: number }
   | { type: "attack"; targetId: number }
+  | { type: "repair"; targetId: number }
   | { type: "build"; targetId: number };
 
 export interface Unit extends Entity {

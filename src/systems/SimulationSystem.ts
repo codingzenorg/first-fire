@@ -42,6 +42,9 @@ export class SimulationSystem {
       case "attack":
         this.attack(unit, unit.order.targetId, delta);
         break;
+      case "repair":
+        this.repair(unit, unit.order.targetId, delta);
+        break;
       case "build":
         this.build(unit, unit.order.targetId, delta);
         break;
@@ -151,6 +154,26 @@ export class SimulationSystem {
       this.audio.play(died ? "death" : "hit");
       if (died) this.effects.death(impactPosition, target.team);
       unit.attackTimer = unit.attackCooldown;
+    }
+  }
+
+  private repair(unit: Unit, targetId: number, delta: number): void {
+    if (unit.unitKind !== "villager") {
+      unit.order = { type: "idle" };
+      return;
+    }
+    const target = this.entities.get(targetId);
+    if (!target || target.dead || target.kind !== "building" || target.team !== unit.team || target.health >= target.maxHealth) {
+      unit.order = { type: "idle" };
+      return;
+    }
+    const range = target.radius + unit.radius + 0.45;
+    if (!this.moveToward(unit, target.object.position, delta, range)) return;
+    const repairRate = 18;
+    target.health = Math.min(target.maxHealth, target.health + delta * repairRate);
+    this.entities.updateHealthBar(target);
+    if (target.health >= target.maxHealth) {
+      unit.order = { type: "idle" };
     }
   }
 

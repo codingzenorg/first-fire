@@ -11,9 +11,12 @@ import { FogSystem } from "../systems/FogSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { ResourceSystem } from "../systems/ResourceSystem";
 import { SimulationSystem } from "../systems/SimulationSystem";
-import type { Building, GameState } from "../types";
+import type { Building, DifficultyLevel, GameState } from "../types";
 import { UI } from "../ui/UI";
 import { World } from "../world/World";
+import { DIFFICULTY_LABELS } from "../config";
+
+const DIFFICULTY_STORAGE_KEY = "first-fire:difficulty";
 
 export class Game {
   private readonly rendering: SceneRenderer;
@@ -29,10 +32,12 @@ export class Game {
   private readonly ui: UI;
   private readonly input: InputSystem;
   private readonly clock = new THREE.Clock();
+  private difficulty: DifficultyLevel;
   private state: GameState = "playing";
   private frame = 0;
 
   constructor(root: HTMLElement) {
+    this.difficulty = this.loadDifficulty();
     this.rendering = new SceneRenderer(root);
     this.camera = new CameraSystem(this.rendering.renderer.domElement);
     this.entities = new EntitySystem(this.rendering.scene);
@@ -40,16 +45,20 @@ export class Game {
     this.effects = new EffectsSystem(this.rendering.scene);
     this.simulation = new SimulationSystem(this.entities, this.resources, this.audio, this.effects);
     this.animation = new AnimationSystem(this.entities, this.camera.camera);
-    this.ai = new AISystem(this.entities);
+    this.ai = new AISystem(this.entities, this.difficulty);
 
     this.ui = new UI(root, {
       build: (kind) => this.input.startPlacement(kind),
       trainVillager: () => this.train("villager"),
       trainSoldier: () => this.train("soldier"),
+      setDifficulty: (difficulty) => this.setDifficulty(difficulty),
+      navigateMinimap: (position) => this.focusCamera(position.x, position.z),
       activateSound: () => this.audio.activateAndTest(),
       toggleMute: () => this.audio.toggleMute(),
       restart: () => window.location.reload(),
     });
+    this.ui.setDifficulty(this.difficulty);
+    this.ui.updateWave(this.ai.getStatus());
     this.createScenario();
     this.fog = new FogSystem(this.rendering.scene, this.entities);
     this.simulation.setTargetVisibility((entity) => (
@@ -172,6 +181,32 @@ export class Game {
 
   private refreshSelection(): void {
     this.ui.updateSelection(this.input.selectedUnits(), this.input.selectedBuilding());
+  }
+
+  private focusCamera(x: number, z: number): void {
+    this.camera.focus(new THREE.Vector3(x, 0, z));
+  }
+
+  private setDifficulty(difficulty: DifficultyLevel): void {
+    this.difficulty = difficulty;
+    this.ai.setDifficulty(difficulty);
+    try {
+      window.localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficulty);
+    } catch {
+      // Ignore storage failures and keep the live setting.
+    }
+    this.ui.updateWave(this.ai.getStatus());
+    this.ui.notify(`Enemy pace set to ${DIFFICULTY_LABELS[difficulty]}.`);
+  }
+
+  private loadDifficulty(): DifficultyLevel {
+    try {
+      const saved = window.localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+      if (saved === "easy" || saved === "normal" || saved === "hard") return saved;
+    } catch {
+      // Fall back to the default difficulty when storage is unavailable.
+    }
+    return "normal";
   }
 
   private refreshUI(): void {

@@ -1,11 +1,23 @@
 import * as THREE from "three";
+import { DIFFICULTY_LABELS, DIFFICULTY_SETTINGS } from "../config";
 import { EntitySystem } from "./EntitySystem";
+import type { DifficultyLevel } from "../types";
 
 export class AISystem {
-  private waveTimer = 24;
+  private waveTimer: number;
   private wave = 0;
 
-  constructor(private readonly entities: EntitySystem) {}
+  constructor(
+    private readonly entities: EntitySystem,
+    private difficulty: DifficultyLevel,
+  ) {
+    this.waveTimer = DIFFICULTY_SETTINGS[this.difficulty].initialRaidDelay;
+  }
+
+  setDifficulty(difficulty: DifficultyLevel): void {
+    this.difficulty = difficulty;
+    this.waveTimer = DIFFICULTY_SETTINGS[difficulty].initialRaidDelay;
+  }
 
   update(delta: number): void {
     this.waveTimer -= delta;
@@ -20,7 +32,8 @@ export class AISystem {
     if (!enemyTownCenter || !playerTownCenter) return;
 
     this.wave += 1;
-    const count = Math.min(2 + this.wave, 6);
+    const settings = DIFFICULTY_SETTINGS[this.difficulty];
+    const count = Math.min(settings.waveBase + this.wave * settings.waveGrowth, settings.waveCap);
     for (let index = 0; index < count; index += 1) {
       const offset = new THREE.Vector3((index - count / 2) * 1.4, 0, -5 - (index % 2));
       const soldier = this.entities.createUnit(
@@ -30,10 +43,13 @@ export class AISystem {
       );
       soldier.order = { type: "attack", targetId: playerTownCenter.id };
     }
-    this.waveTimer = Math.max(22, 36 - this.wave * 2);
+    this.waveTimer = Math.max(
+      settings.minimumRaidDelay,
+      settings.initialRaidDelay - this.wave * settings.raidDelayDecay,
+    );
   }
 
   getStatus(): string {
-    return `Next raid: ${Math.max(0, Math.ceil(this.waveTimer))}s`;
+    return `Enemy pace: ${DIFFICULTY_LABELS[this.difficulty]} · Next raid in ${Math.max(0, Math.ceil(this.waveTimer))}s`;
   }
 }

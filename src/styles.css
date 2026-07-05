@@ -128,6 +128,40 @@ canvas {
   gap: 14px;
 }
 
+.difficulty-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  color: #d9cda9;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(211, 180, 99, 0.4);
+  letter-spacing: 0.1em;
+}
+
+.difficulty-control span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.difficulty-control select {
+  min-width: 82px;
+  padding: 2px 20px 2px 7px;
+  color: #f2ead6;
+  background: rgba(18, 18, 14, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  outline: none;
+  font: 700 10px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.difficulty-control select:hover {
+  border-color: var(--gold);
+}
+
 .sound-toggle {
   min-width: 94px;
   padding: 5px 8px;
@@ -211,6 +245,8 @@ canvas {
   height: 150px;
   border: 2px solid #726b51;
   box-shadow: inset 0 0 15px #000, 0 4px 12px rgba(0, 0, 0, 0.25);
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .selection-panel {

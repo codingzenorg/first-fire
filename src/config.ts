@@ -1,4 +1,11 @@
-import type { BuildDefinition, BuildingKind, Stockpile, TrainDefinition, UnitKind } from "./types";
+import type {
+  BuildDefinition,
+  BuildingKind,
+  DifficultyLevel,
+  Stockpile,
+  TrainDefinition,
+  UnitKind,
+} from "./types";
 
 export const MAP_SIZE = 112;
 export const PLAYER_COLOR = 0x2f70b7;
@@ -46,4 +53,47 @@ export const STARTING_RESOURCES: Stockpile = {
   wood: 180,
   food: 180,
   gold: 80,
+};
+
+export const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
+  easy: "Easy",
+  normal: "Normal",
+  hard: "Hard",
+};
+
+export const DIFFICULTY_SETTINGS: Record<
+  DifficultyLevel,
+  {
+    initialRaidDelay: number;
+    minimumRaidDelay: number;
+    raidDelayDecay: number;
+    waveBase: number;
+    waveGrowth: number;
+    waveCap: number;
+  }
+> = {
+  easy: {
+    initialRaidDelay: 34,
+    minimumRaidDelay: 28,
+    raidDelayDecay: 1.25,
+    waveBase: 1,
+    waveGrowth: 1,
+    waveCap: 4,
+  },
+  normal: {
+    initialRaidDelay: 24,
+    minimumRaidDelay: 20,
+    raidDelayDecay: 1.75,
+    waveBase: 2,
+    waveGrowth: 1,
+    waveCap: 6,
+  },
+  hard: {
+    initialRaidDelay: 16,
+    minimumRaidDelay: 12,
+    raidDelayDecay: 2.25,
+    waveBase: 3,
+    waveGrowth: 2,
+    waveCap: 8,
+  },
 };
