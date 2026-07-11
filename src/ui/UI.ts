@@ -1,6 +1,14 @@
 import type { AudioStatus } from "../systems/AudioSystem";
 import { MAP_SIZE } from "../config";
-import type { Building, BuildingKind, DifficultyLevel, GameState, Stockpile, Unit } from "../types";
+import type {
+  Building,
+  BuildingKind,
+  DifficultyLevel,
+  EndReport,
+  GameState,
+  Stockpile,
+  Unit,
+} from "../types";
 
 export interface UIActions {
   build: (kind: BuildingKind) => void;
@@ -22,6 +30,7 @@ export class UI {
   private readonly minimap: HTMLCanvasElement;
   private readonly minimapContext: CanvasRenderingContext2D;
   private readonly endScreen: HTMLElement;
+  private readonly battleReport: HTMLElement;
   private readonly toast: HTMLElement;
   private toastTimer?: number;
   private minimapPointerId?: number;
@@ -72,6 +81,7 @@ export class UI {
           <div class="end-card">
             <p>THE BATTLE IS OVER</p>
             <h1 data-ui="end-title"></h1>
+            <div class="battle-report" data-ui="battle-report"></div>
             <button data-action="restart">Play Again</button>
           </div>
         </div>
@@ -87,6 +97,7 @@ export class UI {
     if (!context) throw new Error("Canvas 2D unavailable");
     this.minimapContext = context;
     this.endScreen = this.require("[data-ui='end-screen']");
+    this.battleReport = this.require("[data-ui='battle-report']");
     this.toast = this.require("[data-ui='toast']");
     this.minimap.addEventListener("pointerdown", this.onMinimapPointerDown);
     this.minimap.addEventListener("pointermove", this.onMinimapPointerMove);
@@ -318,8 +329,10 @@ export class UI {
     `;
   }
 
-  showEnd(state: Exclude<GameState, "playing">): void {
+  showEnd(state: Exclude<GameState, "playing">, report?: EndReport): void {
     this.require("[data-ui='end-title']").textContent = state === "won" ? "VICTORY" : "DEFEAT";
+    this.battleReport.innerHTML = report ? this.renderBattleReport(report) : "";
+    this.battleReport.hidden = !report;
     this.endScreen.classList.add("visible");
   }
 
@@ -444,6 +457,33 @@ export class UI {
   private buildingName(kind: BuildingKind): string {
     if (kind === "townCenter") return "Town Center";
     return kind === "barracks" ? "Barracks" : "House";
+  }
+
+  private renderBattleReport(report: EndReport): string {
+    return `
+      <div class="battle-report__title">Battle report</div>
+      <div class="battle-report__grid">
+        ${this.teamReport("Player", "player", report.player)}
+        ${this.teamReport("Enemy", "enemy", report.enemy)}
+      </div>
+    `;
+  }
+
+  private teamReport(
+    label: string,
+    team: "player" | "enemy",
+    report: EndReport["player"],
+  ): string {
+    return `
+      <section class="team-report ${team}">
+        <h2>${label}</h2>
+        <dl>
+          <div><dt>Buildings</dt><dd>${report.buildings}</dd></div>
+          <div><dt>People</dt><dd>${report.villagers}</dd></div>
+          <div><dt>Army</dt><dd>${report.soldiers}</dd></div>
+        </dl>
+      </section>
+    `;
   }
 
   private audioMessage(status: AudioStatus): string {

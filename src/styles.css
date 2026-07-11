@@ -422,7 +422,7 @@ canvas {
 }
 
 .end-card {
-  width: min(500px, calc(100vw - 40px));
+  width: min(620px, calc(100vw - 40px));
   padding: 48px 30px;
   text-align: center;
   background:
@@ -443,6 +443,72 @@ canvas {
   color: var(--gold);
   font: 700 56px "Spectral SC", serif;
   letter-spacing: 0.12em;
+}
+
+.battle-report {
+  margin: 0 0 28px;
+  text-align: left;
+}
+
+.battle-report__title {
+  margin-bottom: 14px;
+  color: #e8ddbb;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+}
+
+.battle-report__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.team-report {
+  padding: 16px 16px 14px;
+  background: linear-gradient(180deg, rgba(56, 54, 42, 0.95), rgba(33, 31, 24, 0.96));
+  border: 1px solid rgba(231, 214, 167, 0.22);
+}
+
+.team-report.player {
+  border-left: 3px solid var(--blue);
+}
+
+.team-report.enemy {
+  border-left: 3px solid var(--red);
+}
+
+.team-report h2 {
+  margin: 0 0 12px;
+  color: #f3ecd6;
+  font-family: "Spectral SC", serif;
+  font-size: 20px;
+}
+
+.team-report dl {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.team-report dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #ddd3b8;
+}
+
+.team-report dt {
+  color: #a9a18b;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+
+.team-report dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .end-card button {
@@ -505,6 +571,10 @@ canvas {
 
   .portrait {
     display: none;
+  }
+
+  .battle-report__grid {
+    grid-template-columns: 1fr;
   }
 
   .commands {

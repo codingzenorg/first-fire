@@ -11,7 +11,7 @@ import { FogSystem } from "../systems/FogSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { ResourceSystem } from "../systems/ResourceSystem";
 import { SimulationSystem } from "../systems/SimulationSystem";
-import type { Building, DifficultyLevel, GameState } from "../types";
+import type { Building, DifficultyLevel, EndReport, GameState } from "../types";
 import { UI } from "../ui/UI";
 import { World } from "../world/World";
 import { DIFFICULTY_LABELS } from "../config";
@@ -238,11 +238,11 @@ export class Game {
     if (!this.getTownCenter("enemy")) {
       this.state = "won";
       this.audio.play("victory");
-      this.ui.showEnd("won");
+      this.ui.showEnd("won", this.buildEndReport());
     } else if (!this.getTownCenter("player")) {
       this.state = "lost";
       this.audio.play("defeat");
-      this.ui.showEnd("lost");
+      this.ui.showEnd("lost", this.buildEndReport());
     }
   }
 
@@ -250,5 +250,22 @@ export class Game {
     return this.entities
       .buildings(team)
       .find((building) => building.buildingKind === "townCenter");
+  }
+
+  private buildEndReport(): EndReport {
+    return {
+      player: this.sideReport("player"),
+      enemy: this.sideReport("enemy"),
+    };
+  }
+
+  private sideReport(team: "player" | "enemy"): EndReport["player"] {
+    const buildings = this.entities.buildings(team).length;
+    const units = this.entities.units(team);
+    return {
+      buildings,
+      villagers: units.filter((unit) => unit.unitKind === "villager").length,
+      soldiers: units.filter((unit) => unit.unitKind === "soldier").length,
+    };
   }
 }

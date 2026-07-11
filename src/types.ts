@@ -90,3 +90,14 @@ export interface TrainDefinition {
   duration: number;
   hotkey: string;
 }
+
+export interface SideReport {
+  buildings: number;
+  villagers: number;
+  soldiers: number;
+}
+
+export interface EndReport {
+  player: SideReport;
+  enemy: SideReport;
+}
